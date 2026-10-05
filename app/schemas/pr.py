@@ -4,17 +4,17 @@ from app.models.procurement import PRStatus
 
 class PRCreate(BaseModel):
     item_name: str
-    quantity: float
+    quantity: int
     estimated_cost: float
     project_id: int
 
-class PRUpdateStatus(BaseModel):
-    status: PRStatus  # APPROVED or REJECTED
+class PRStatusUpdate(BaseModel):
+    status: PRStatus
 
 class PROut(BaseModel):
     id: int
     item_name: str
-    quantity: float
+    quantity: int
     estimated_cost: float
     status: PRStatus
     project_id: int
