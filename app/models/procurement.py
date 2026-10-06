@@ -1,8 +1,9 @@
 import enum
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, DateTime, Enum, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, Enum, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from app.db.session import Base
+
 
 class PRStatus(str, enum.Enum):
     PENDING = "PENDING"
@@ -37,3 +38,32 @@ class PurchaseOrder(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     requisition = relationship("PurchaseRequisition")
+
+# (Keep existing PRStatus and POStatus enums, PurchaseRequisition, PurchaseOrder models)
+
+class GoodsReceivedNote(Base):
+    __tablename__ = "goods_received_notes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False)
+    quantity_received = Column(Integer, nullable=False)
+    unit_price_billed = Column(Float, nullable=False)
+    received_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    # Anomaly / Fraud Audit Fields
+    is_flagged_for_audit = Column(Boolean, default=False)
+    anomaly_score = Column(Float, nullable=True)
+    audit_notes = Column(String, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    purchase_order = relationship("PurchaseOrder")
+
+class InventoryItem(Base):
+    __tablename__ = "inventory_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    item_name = Column(String, nullable=False)
+    current_stock = Column(Integer, default=0, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
