@@ -1,807 +1,1045 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
-  Building2, 
-  FileText, 
-  ShoppingCart, 
-  Award, 
-  ShieldAlert, 
-  Package, 
-  LogOut, 
-  User, 
-  Lock, 
-  AlertTriangle,
-  TrendingUp,
-  Server,
-  Key,
-  MapPin,
-  PieChart
+  Building2, HardHat, ClipboardList, ShoppingCart, ShieldAlert, 
+  Search, Filter, Plus, CheckCircle, XCircle, AlertTriangle, 
+  TrendingUp, Layers, IndianRupee, Truck, Store, Calendar, LogOut,
+  FileText, CheckSquare, Layers3, X, Download, Trash2, Archive, PlayCircle,
+  Upload, Database, Paperclip, FileCheck
 } from 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:8000';
-
-// Master Material Item Catalog
-const MASTER_MATERIALS = [
-  { id: 1, code: 'MAT-CEM-01', name: 'Cement Grade 53', unit: 'Bags', stdPrice: 425 },
-  { id: 2, code: 'MAT-STL-12', name: 'Steel Rebar 12mm', unit: 'Tons', stdPrice: 58000 },
-  { id: 3, code: 'MAT-AGG-20', name: 'Coarse Aggregate 20mm', unit: 'Cu.m', stdPrice: 1800 },
-  { id: 4, code: 'MAT-BRK-R1', name: 'Red Clay Bricks Class I', unit: 'Units', stdPrice: 9 }
-];
+const API_BASE = "http://127.0.0.1:8000";
 
 export default function App() {
-  // Auth state
-  const [token, setToken] = useState(localStorage.getItem('erp_token') || '');
-  const [currentUser, setCurrentUser] = useState(JSON.parse(localStorage.getItem('erp_user') || 'null'));
-  const [loginEmail, setLoginEmail] = useState('bob@example.com');
-  const [loginPassword, setLoginPassword] = useState('password123');
+  const [currentUser, setCurrentUser] = useState(JSON.parse(localStorage.getItem('erp_user')) || null);
+  const [token, setToken] = useState(localStorage.getItem('erp_token') || null);
+  const [activeTab, setActiveTab] = useState('overview');
+
+  // Credentials & Login State
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [authError, setAuthError] = useState('');
 
-  // Mode state
-  const [useLiveApi, setUseLiveApi] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // Filtering & Search States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [wbsFilter, setWbsFilter] = useState('ALL');
+  const [projectStatusFilter, setProjectStatusFilter] = useState('ALL');
 
-  // Upgraded App Data with WBS Sub-Locations and BOQ Limits
+  // New Project Modal State
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [newProject, setNewProject] = useState({ name: '', location: '', budget: '', physical_progress: 0 });
+
+  // Master Construction Projects Data State
+  const [projects, setProjects] = useState([
+    { id: 1, name: "Skyline Residency - Block A", location: "Plot 42, Sector 5", budget: 45000000, physical_progress: 48, status: "ACTIVE" },
+    { id: 2, name: "Substation Infrastructure Phase 2", location: "Industrial Zone C", budget: 12000000, physical_progress: 70, status: "ACTIVE" }
+  ]);
+
+  // Extended Requisitions (PR)
   const [prs, setPrs] = useState([
-    { 
-      id: 1, 
-      item: 'Cement Grade 53', 
-      subLocation: 'Plot 12 / Tower A - Floor 3', 
-      qty: 200, 
-      boqMax: 500, 
-      boqUsed: 150, 
-      cost: 85000, 
-      status: 'APPROVED', 
-      user: 'bob@example.com' 
-    },
-    { 
-      id: 2, 
-      item: 'Steel Rebar 12mm', 
-      subLocation: 'Plot 42 / Substation Foundation', 
-      qty: 450, 
-      boqMax: 400, // OVER-RUN ALERT CASE
-      boqUsed: 100, 
-      cost: 240000, 
-      status: 'PENDING', 
-      user: 'bob@example.com' 
-    }
+    { id: 101, project_id: 1, project: "Skyline Residency - Block A", sub_location: "Plot 42 / Foundation", item: "Fe-550 TMT Steel Rebar 12mm", company: "Tata Tiscon", qty: 450, unit: "MT", unit_price: 62000, gst_pct: 18, total_price: 32922000, status: "APPROVED", boq_limit: 400, boq_consumed: 380, date: "2026-10-10" },
+    { id: 102, project_id: 2, project: "Substation Infrastructure Phase 2", sub_location: "Control Building Slab", item: "OPC 53 Grade Portland Cement", company: "UltraTech", qty: 800, unit: "Bags", unit_price: 380, gst_pct: 28, total_price: 389120, status: "APPROVED", boq_limit: 1000, boq_consumed: 150, date: "2026-10-11" },
+    { id: 103, project_id: 1, project: "Skyline Residency - Block A", sub_location: "Tower B / 2nd Floor", item: "M25 Ready Mix Concrete (RMC)", company: "ACC Concrete", qty: 120, unit: "Cu.m", unit_price: 4500, gst_pct: 18, total_price: 637200, status: "PENDING", boq_limit: 300, boq_consumed: 80, date: "2026-10-12" }
   ]);
 
+  // Purchase Orders (PO)
   const [pos, setPos] = useState([
-    { id: 1, prId: 1, vendor: 'UltraTech Solutions', totalQty: 200, remainingQty: 200, total: 85000, status: 'ISSUED' }
+    { id: 201, pr_id: 102, vendor: "UltraTech Cement Ltd", item: "OPC 53 Grade Portland Cement", company: "UltraTech", total_qty: 800, remaining_qty: 300, unit_price: 380, gst_pct: 28, agreed_inr: 389120, status: "PARTIALLY_DELIVERED", date: "2026-10-11" }
   ]);
 
-  const [inventory, setInventory] = useState([
-    { id: 1, item: 'Cement Grade 53', qty: 200, unit: 'Bags' },
-    { id: 2, item: 'Steel Rebar 12mm', qty: 0, unit: 'Tons' }
+  // Goods Received Notes (GRN) with Physical Challan Attachment
+  const [grns, setGrns] = useState([
+    { id: 301, po_id: 201, vendor: "UltraTech Cement Ltd", item: "OPC 53 Grade Portland Cement", company: "UltraTech", qty_received: 500, unit_price: 380, total_inr: 243200, is_flagged: false, challan_doc: "DC-99201.pdf", timestamp: "2026-10-12 14:30" }
   ]);
 
-  // Form states
-  const [selectedMaterial, setSelectedMaterial] = useState(MASTER_MATERIALS[0].name);
-  const [subLocation, setSubLocation] = useState('Plot 42 / Tower B - Slab 2');
-  const [newQty, setNewQty] = useState('');
-  const [newCost, setNewCost] = useState('');
+  // Store Issue Notes (SIN)
+  const [sins, setSins] = useState([
+    { id: 401, sub_location: "Plot 42 / Foundation", item: "OPC 53 Grade Portland Cement", qty_issued: 250, unit: "Bags", issued_to: "L&T Casting Subcontractor", date: "2026-10-12" }
+  ]);
 
-  // Fuzzy state
-  const [fuzzyDelay, setFuzzyDelay] = useState(2);
-  const [fuzzyQuality, setFuzzyQuality] = useState(85);
-  const [fuzzyPriceDev, setFuzzyPriceDev] = useState(3);
+  // New GRN Intake Form State
+  const [newGrn, setNewGrn] = useState({ po_id: 201, qty_received: '', unit_price: '', challan_file: null });
+
+  // Database Migration State
+  const [migrationStatus, setMigrationStatus] = useState(null);
+
+  // Form State for New Requisitions
+  const [newPr, setNewPr] = useState({ 
+    project_id: 1,
+    item: 'Fe-550 TMT Steel Rebar 16mm', 
+    company: 'JSW Neosteel', 
+    qty: 100, 
+    unit: 'MT', 
+    unit_price: 64000, 
+    gst_pct: 18,
+    sub_location: 'Tower B / 3rd Slab Casting' 
+  });
+
+  // Soft Computing Sliders State
+  const [fuzzyParams, setFuzzyParams] = useState({ delay_days: 2, defect_rate: 3, price_dev: 4 });
   const [fuzzyResult, setFuzzyResult] = useState(null);
 
-  // GRN state
-  const [selectedPoId, setSelectedPoId] = useState('1');
-  const [grnQty, setGrnQty] = useState('200');
-  const [grnUnitPrice, setGrnUnitPrice] = useState('425');
-  const [grnLogs, setGrnLogs] = useState([]);
+  // Dynamic Financial Spent Calculation per Project
+  const calculateProjectFinancials = (projectId) => {
+    const approvedPrs = prs.filter(p => p.project_id === projectId && p.status === 'APPROVED');
+    return approvedPrs.reduce((acc, curr) => acc + curr.total_price, 0);
+  };
 
-  useEffect(() => {
-    if (currentUser) {
-      if (currentUser.role === 'PROJECT_HEAD') setActiveTab('prs');
-      else if (currentUser.role === 'PURCHASE_MANAGER') setActiveTab('fuzzy');
-      else setActiveTab('dashboard');
-    }
-  }, [currentUser]);
+  // Auth Handling (Ensures User Lands on 'overview' Tab On Login)
+  const handleLogin = (e) => {
+    e.preventDefault();
+    setAuthError('');
+    
+    const validUsers = {
+      'bob@example.com': { password: 'password123', role: 'SITE_ENGINEER', name: 'Bob Engineer (Site Ops)' },
+      'head@example.com': { password: 'password123', role: 'PROJECT_HEAD', name: 'Project Head (Governance)' },
+      'pm@example.com': { password: 'password123', role: 'PURCHASE_MANAGER', name: 'Purchase Manager (Procurement)' }
+    };
 
-  // Valid Demo User Credentials Database
-const VALID_DEMO_USERS = {
-  'bob@example.com': { password: 'password123', role: 'SITE_ENGINEER', name: 'Bob Engineer' },
-  'head@example.com': { password: 'password123', role: 'PROJECT_HEAD', name: 'Project Head' },
-  'pm@example.com': { password: 'password123', role: 'PURCHASE_MANAGER', name: 'Purchase Manager' }
-};
-
-const handleLogin = async (e) => {
-  e.preventDefault();
-  setAuthError('');
-
-  if (useLiveApi) {
-    try {
-      const formData = new URLSearchParams();
-      formData.append('username', loginEmail);
-      formData.append('password', loginPassword);
-
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData
-      });
-
-      if (!res.ok) throw new Error('Invalid email or password');
-      const data = await res.json();
-      
-      let role = 'SITE_ENGINEER';
-      let fullName = 'Bob Engineer';
-      if (loginEmail.includes('head')) { role = 'PROJECT_HEAD'; fullName = 'Project Head'; }
-      if (loginEmail.includes('pm')) { role = 'PURCHASE_MANAGER'; fullName = 'Purchase Manager'; }
-
-      const userObj = { email: loginEmail, role, name: fullName };
-      
-      setToken(data.access_token);
-      setCurrentUser(userObj);
-      localStorage.setItem('erp_token', data.access_token);
-      localStorage.setItem('erp_user', JSON.stringify(userObj));
-    } catch (err) {
-      setAuthError(err.message || 'Invalid email or password');
-    }
-  } else {
-    // Local Stateful Memory Validation
-    const user = VALID_DEMO_USERS[loginEmail.toLowerCase().trim()];
-
+    const user = validUsers[loginEmail.toLowerCase().trim()];
     if (!user || user.password !== loginPassword) {
-      setAuthError('Invalid email or password. Please check your credentials.');
+      setAuthError('Invalid credentials. Please verify email and password.');
       return;
     }
 
     const userObj = { email: loginEmail, role: user.role, name: user.name };
-    setToken('mock-jwt-token-12345');
     setCurrentUser(userObj);
-    localStorage.setItem('erp_token', 'mock-jwt-token-12345');
+    setToken('mock-jwt-token');
+    setActiveTab('overview');
     localStorage.setItem('erp_user', JSON.stringify(userObj));
-  }
-};
+    localStorage.setItem('erp_token', 'mock-jwt-token');
+  };
 
   const handleLogout = () => {
-    setToken('');
     setCurrentUser(null);
-    localStorage.removeItem('erp_token');
+    setToken(null);
+    setActiveTab('overview');
     localStorage.removeItem('erp_user');
+    localStorage.removeItem('erp_token');
   };
 
-  // Upgraded PR creation with WBS Location & BOQ limit check
-  const handleCreatePR = (e) => {
+  // Project Management Actions
+  const handleCreateProject = (e) => {
     e.preventDefault();
-    const newPr = {
-      id: prs.length + 1,
-      item: selectedMaterial,
-      subLocation: subLocation,
-      qty: Number(newQty),
-      boqMax: 500,
-      boqUsed: 100,
-      cost: Number(newCost),
-      status: 'PENDING',
-      user: currentUser.email
+    const projectObj = {
+      id: projects.length + 1,
+      name: newProject.name,
+      location: newProject.location,
+      budget: parseFloat(newProject.budget) || 0,
+      physical_progress: parseInt(newProject.physical_progress) || 0,
+      status: "ACTIVE"
     };
-    setPrs([...prs, newPr]);
-    setNewQty(''); setNewCost('');
+
+    setProjects([projectObj, ...projects]);
+    setIsProjectModalOpen(false);
+    setNewProject({ name: '', location: '', budget: '', physical_progress: 0 });
   };
 
-  const handleApprovePR = (id) => {
-    setPrs(prs.map(pr => pr.id === id ? { ...pr, status: 'APPROVED' } : pr));
-  };
-
-  const handleRejectPR = (id) => {
-    setPrs(prs.map(pr => pr.id === id ? { ...pr, status: 'REJECTED' } : pr));
-  };
-
-  const runFuzzyEval = () => {
-    let score = 100 - (fuzzyDelay * 8) + (fuzzyQuality * 0.4) - (fuzzyPriceDev * 5);
-    score = Math.max(10, Math.min(99, Math.round(score)));
-    let rating = 'Preferred Vendor';
-    if (score < 50) rating = 'High Risk - Blacklisted';
-    else if (score < 75) rating = 'Conditional Acceptance';
-    setFuzzyResult({ score, rating });
-  };
-
-  const handleIssuePo = async (pr) => {
-    const newPo = {
-      id: pos.length + 1,
-      prId: pr.id,
-      vendor: 'UltraTech Solutions',
-      totalQty: pr.qty,
-      remainingQty: pr.qty,
-      total: pr.cost,
-      status: 'ISSUED'
-    };
-    setPos([...pos, newPo]);
-    setPrs(prs.map(p => p.id === pr.id ? { ...p, status: 'PO_ISSUED' } : p));
-    alert(`PO #${newPo.id} Issued Successfully for ${pr.subLocation}!`);
-  };
-
-  // Upgraded GRN with Partial Delivery balance update
-  const handleCreateGrn = (e) => {
-    e.preventDefault();
-    const isFraud = Number(grnUnitPrice) > 600 || Number(grnQty) > 1000;
-    const targetPo = pos.find(p => p.id === Number(selectedPoId));
-
-    const log = {
-      id: grnLogs.length + 1,
-      poId: selectedPoId,
-      qty: grnQty,
-      price: grnUnitPrice,
-      status: isFraud ? 'FLAGGED FOR FRAUD AUDIT' : 'PASSED & INVENTORIED',
-      isFraud
-    };
-    setGrnLogs([log, ...grnLogs]);
-
-    if (!isFraud && targetPo) {
-      // Reduce remaining PO balance
-      const newRemaining = Math.max(0, targetPo.remainingQty - Number(grnQty));
-      setPos(pos.map(p => p.id === targetPo.id ? { 
-        ...p, 
-        remainingQty: newRemaining,
-        status: newRemaining === 0 ? 'COMPLETED' : 'PARTIALLY_DELIVERED'
-      } : p));
-
-      // Update Inventory
-      const targetPr = prs.find(r => r.id === targetPo.prId);
-      if (targetPr) {
-        setInventory(inventory.map(inv => 
-          inv.item.toLowerCase().includes(targetPr.item.toLowerCase())
-            ? { ...inv, qty: inv.qty + Number(grnQty) }
-            : inv
-        ));
+  const toggleProjectStatus = (id) => {
+    setProjects(projects.map(p => {
+      if (p.id === id) {
+        const nextStatus = p.status === 'ACTIVE' ? 'COMPLETED' : 'ACTIVE';
+        const nextPhysical = nextStatus === 'COMPLETED' ? 100 : p.physical_progress;
+        return { ...p, status: nextStatus, physical_progress: nextPhysical };
       }
+      return p;
+    }));
+  };
+
+  const deleteProject = (id) => {
+    if (window.confirm("Are you sure you want to permanently delete this project record?")) {
+      setProjects(projects.filter(p => p.id !== id));
     }
   };
 
-  const selectQuickAccount = (email) => {
-    setLoginEmail(email);
-    setLoginPassword('password123');
+  // Requisition Creation
+  const handleCreatePr = (e) => {
+    e.preventDefault();
+    const basePrice = newPr.qty * newPr.unit_price;
+    const gstAmount = basePrice * (newPr.gst_pct / 100);
+    const totalPrice = basePrice + gstAmount;
+
+    const selectedProj = projects.find(p => p.id === parseInt(newPr.project_id)) || projects[0];
+
+    const prObj = {
+      id: 100 + prs.length + 1,
+      project_id: selectedProj.id,
+      project: selectedProj.name,
+      sub_location: newPr.sub_location,
+      item: newPr.item,
+      company: newPr.company,
+      qty: parseInt(newPr.qty),
+      unit: newPr.unit,
+      unit_price: parseFloat(newPr.unit_price),
+      gst_pct: parseFloat(newPr.gst_pct),
+      total_price: totalPrice,
+      status: "PENDING",
+      boq_limit: 300,
+      boq_consumed: 210,
+      date: new Date().toISOString().split('T')[0]
+    };
+    setPrs([prObj, ...prs]);
+    alert("Requisition submitted successfully!");
   };
 
-  // LOGIN SCREEN
-  if (!token || !currentUser) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-4">
-        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl space-y-6">
-          <div className="text-center space-y-2">
-            <div className="inline-flex p-3 bg-amber-500/10 text-amber-500 rounded-xl mb-2">
-              <Building2 className="w-8 h-8" />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">ConstructERP Portal</h1>
-            <p className="text-slate-400 text-sm">Enterprise WBS & Procurement Gateway</p>
-          </div>
+  // Submit GRN with Challan
+  const handleCreateGrn = (e) => {
+    e.preventDefault();
+    const po = pos.find(p => p.id === parseInt(newGrn.po_id)) || pos[0];
+    const qty = parseInt(newGrn.qty_received);
+    const price = parseFloat(newGrn.unit_price);
+    const total = qty * price * (1 + po.gst_pct / 100);
 
+    const isPriceAnomaly = price > po.unit_price * 1.25;
+    const isQtyAnomaly = qty > po.remaining_qty;
+    const flagged = isPriceAnomaly || isQtyAnomaly;
+
+    const grnObj = {
+      id: 300 + grns.length + 1,
+      po_id: po.id,
+      vendor: po.vendor,
+      item: po.item,
+      company: po.company,
+      qty_received: qty,
+      unit_price: price,
+      total_inr: Math.round(total),
+      is_flagged: flagged,
+      challan_doc: newGrn.challan_file ? newGrn.challan_file.name : "DC-ATTACHMENT.pdf",
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16)
+    };
+
+    setGrns([grnObj, ...grns]);
+    alert(flagged ? "WARNING: GRN submitted but FLAGGED FOR FRAUD AUDIT." : "GRN submitted successfully!");
+    setNewGrn({ po_id: 201, qty_received: '', unit_price: '', challan_file: null });
+  };
+
+  // Database Migration Loader Simulation
+  const handleDatabaseMigration = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setMigrationStatus("Processing legacy database migration schema...");
+    setTimeout(() => {
+      setMigrationStatus(`Successfully imported 142 Master Catalog Items and 8 Historical Projects from '${file.name}'.`);
+    }, 1500);
+  };
+
+  // Export CSV Helper
+  const exportToCsv = (filename, rows) => {
+    if (!rows || !rows.length) return;
+    const separator = ',';
+    const keys = Object.keys(rows[0]);
+    const csvContent =
+      keys.join(separator) +
+      '\n' +
+      rows.map(row => keys.map(k => `"${(row[k] ?? '').toString().replace(/"/g, '""')}"`).join(separator)).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', `${filename}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Soft Computing Fuzzy Evaluation
+  const runFuzzyEvaluation = () => {
+    const { delay_days, defect_rate, price_dev } = fuzzyParams;
+    let score = 100 - (delay_days * 3 + defect_rate * 4 + price_dev * 2.5);
+    score = Math.max(10, Math.min(98, Math.round(score)));
+    
+    let category = "Preferred Vendor";
+    if (score < 50) category = "High Risk - Blacklisted";
+    else if (score < 75) category = "Conditional Acceptance";
+
+    setFuzzyResult({ score, category });
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-[#FDFBF7] text-[#292524] flex items-center justify-center p-4">
+        <div className="bg-[#F3EFE0] border border-[#E5DECA] p-8 rounded-xl shadow-lg w-full max-w-md">
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <Building2 className="w-10 h-10 text-[#B45309]" />
+            <h1 className="text-2xl font-bold tracking-tight text-[#292524]">ConstructERP</h1>
+          </div>
+          
           {authError && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-sm flex items-center gap-2">
+            <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-800 rounded-md text-sm flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>{authError}</span>
+              {authError}
             </div>
           )}
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Work Email</label>
-              <div className="relative">
-                <User className="w-5 h-5 absolute left-3 top-2.5 text-slate-500" />
-                <input 
-                  type="email" 
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 pl-10 pr-4 text-sm text-slate-200 focus:outline-none focus:border-amber-500"
-                  required
-                />
-              </div>
+              <label className="block text-sm font-medium mb-1 text-[#57534E]">Email Address</label>
+              <input 
+                type="email" 
+                required 
+                value={loginEmail} 
+                onChange={(e) => setLoginEmail(e.target.value)}
+                className="w-full p-2.5 bg-[#FDFBF7] border border-[#D6CEB8] rounded-md focus:outline-none focus:ring-2 focus:ring-[#B45309]" 
+                placeholder="user@example.com"
+              />
             </div>
-
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Password</label>
-              <div className="relative">
-                <Lock className="w-5 h-5 absolute left-3 top-2.5 text-slate-500" />
-                <input 
-                  type="password" 
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 pl-10 pr-4 text-sm text-slate-200 focus:outline-none focus:border-amber-500"
-                  required
-                />
-              </div>
+              <label className="block text-sm font-medium mb-1 text-[#57534E]">Password</label>
+              <input 
+                type="password" 
+                required 
+                value={loginPassword} 
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className="w-full p-2.5 bg-[#FDFBF7] border border-[#D6CEB8] rounded-md focus:outline-none focus:ring-2 focus:ring-[#B45309]" 
+                placeholder="••••••••"
+              />
             </div>
-
-            <button 
-              type="submit" 
-              className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold py-2.5 rounded-xl transition shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2"
-            >
-              <Key className="w-4 h-4" /> Sign In to ERP
+            <button type="submit" className="w-full py-3 bg-[#B45309] hover:bg-[#92400E] text-white font-semibold rounded-md transition shadow">
+              Sign In to ERP Portal
             </button>
           </form>
 
-          <div className="border-t border-slate-800 pt-4 space-y-2">
-            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider block">Demo Quick Select Accounts:</span>
+          <div className="mt-6 pt-4 border-t border-[#E5DECA]">
+            <p className="text-xs text-[#78716C] mb-2 font-medium">Quick Select Demo Persona:</p>
             <div className="grid grid-cols-3 gap-2">
-              <button 
-                onClick={() => selectQuickAccount('bob@example.com')}
-                className="p-2 bg-slate-800/50 hover:bg-slate-800 rounded-lg text-left border border-slate-700/50 text-xs text-slate-300"
-              >
-                <span className="block font-medium text-amber-400">Site Eng.</span>
-                bob@example.com
-              </button>
-              <button 
-                onClick={() => selectQuickAccount('head@example.com')}
-                className="p-2 bg-slate-800/50 hover:bg-slate-800 rounded-lg text-left border border-slate-700/50 text-xs text-slate-300"
-              >
-                <span className="block font-medium text-emerald-400">Proj. Head</span>
-                head@example.com
-              </button>
-              <button 
-                onClick={() => selectQuickAccount('pm@example.com')}
-                className="p-2 bg-slate-800/50 hover:bg-slate-800 rounded-lg text-left border border-slate-700/50 text-xs text-slate-300"
-              >
-                <span className="block font-medium text-purple-400">Purch. Mgr</span>
-                pm@example.com
-              </button>
+              <button onClick={() => { setLoginEmail('bob@example.com'); setLoginPassword('password123'); }} className="p-2 bg-[#E5DECA] text-xs font-medium rounded hover:bg-[#D6CEB8]">Site Eng.</button>
+              <button onClick={() => { setLoginEmail('head@example.com'); setLoginPassword('password123'); }} className="p-2 bg-[#E5DECA] text-xs font-medium rounded hover:bg-[#D6CEB8]">Proj. Head</button>
+              <button onClick={() => { setLoginEmail('pm@example.com'); setLoginPassword('password123'); }} className="p-2 bg-[#E5DECA] text-xs font-medium rounded hover:bg-[#D6CEB8]">Purch. Mgr</button>
             </div>
-          </div>
-
-          <div className="flex items-center justify-between text-xs text-slate-500 pt-2">
-            <span>API Mode:</span>
-            <button 
-              onClick={() => setUseLiveApi(!useLiveApi)}
-              className={`px-2 py-1 rounded-md border text-xs flex items-center gap-1 ${
-                useLiveApi ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-400 border-slate-700'
-              }`}
-            >
-              <Server className="w-3 h-3" />
-              {useLiveApi ? 'FastAPI Backend (8000)' : 'Mock Engine'}
-            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  // MAIN DASHBOARD UI
+  // Filter Logic
+  const filteredPrs = prs.filter(pr => {
+    const matchesSearch = pr.item.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          pr.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          pr.sub_location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          pr.id.toString().includes(searchQuery);
+    const matchesStatus = statusFilter === 'ALL' || pr.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const filteredProjects = projects.filter(p => {
+    if (projectStatusFilter === 'ALL') return true;
+    return p.status === projectStatusFilter;
+  });
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex">
-      {/* Sidebar */}
-      <div className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col justify-between p-4">
-        <div className="space-y-6">
-          <div className="flex items-center gap-3 px-2">
-            <div className="p-2 bg-amber-500/10 text-amber-500 rounded-xl">
-              <Building2 className="w-6 h-6" />
-            </div>
+    <div className="min-h-screen bg-[#FDFBF7] text-[#292524] flex">
+      {/* Sidebar Navigation */}
+      <aside className="w-64 bg-[#F3EFE0] border-r border-[#E5DECA] flex flex-col justify-between">
+        <div>
+          <div className="p-5 border-b border-[#E5DECA] flex items-center gap-3">
+            <Building2 className="w-7 h-7 text-[#B45309]" />
             <div>
-              <h2 className="font-bold text-white leading-none">ConstructERP</h2>
-              <span className="text-xs text-slate-500">WBS & BOQ Enabled</span>
+              <h2 className="font-bold text-lg text-[#292524]">ConstructERP</h2>
+              <span className="text-xs text-[#78716C] capitalize">{currentUser.role.replace('_', ' ')}</span>
             </div>
           </div>
 
-          <nav className="space-y-1">
-            <button 
-              onClick={() => setActiveTab('dashboard')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
-                activeTab === 'dashboard' ? 'bg-amber-500 text-slate-950 font-semibold' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <TrendingUp className="w-4 h-4" /> Overview
+          <nav className="p-3 space-y-1">
+            <button onClick={() => setActiveTab('overview')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md font-medium text-sm transition ${activeTab === 'overview' ? 'bg-[#B45309] text-white' : 'text-[#57534E] hover:bg-[#E5DECA]'}`}>
+              <TrendingUp className="w-4 h-4" /> Overview Dashboard
             </button>
 
-            {(currentUser.role === 'SITE_ENGINEER' || currentUser.role === 'PROJECT_HEAD') && (
-              <button 
-                onClick={() => setActiveTab('prs')}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition ${
-                  activeTab === 'prs' ? 'bg-amber-500 text-slate-950 font-semibold' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <FileText className="w-4 h-4" /> Requisitions
-                </div>
-                {prs.filter(p => p.status === 'PENDING').length > 0 && (
-                  <span className="px-2 py-0.5 text-xs bg-amber-400/20 text-amber-300 rounded-full">
-                    {prs.filter(p => p.status === 'PENDING').length}
-                  </span>
-                )}
-              </button>
-            )}
+            <button onClick={() => setActiveTab('requisitions')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md font-medium text-sm transition ${activeTab === 'requisitions' ? 'bg-[#B45309] text-white' : 'text-[#57534E] hover:bg-[#E5DECA]'}`}>
+              <ClipboardList className="w-4 h-4" /> Requisitions (PR)
+            </button>
 
-            {currentUser.role === 'PURCHASE_MANAGER' && (
+            {['PURCHASE_MANAGER', 'PROJECT_HEAD'].includes(currentUser.role) && (
               <>
-                <button 
-                  onClick={() => setActiveTab('fuzzy')}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
-                    activeTab === 'fuzzy' ? 'bg-amber-500 text-slate-950 font-semibold' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
-                  <Award className="w-4 h-4" /> Vendor Scoring
+                <button onClick={() => setActiveTab('fuzzy')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md font-medium text-sm transition ${activeTab === 'fuzzy' ? 'bg-[#B45309] text-white' : 'text-[#57534E] hover:bg-[#E5DECA]'}`}>
+                  <Layers3 className="w-4 h-4" /> Fuzzy Vendor Scoring
                 </button>
-                <button 
-                  onClick={() => setActiveTab('pos')}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
-                    activeTab === 'pos' ? 'bg-amber-500 text-slate-950 font-semibold' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
-                  <ShoppingCart className="w-4 h-4" /> Purchase Orders
+                <button onClick={() => setActiveTab('orders')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md font-medium text-sm transition ${activeTab === 'orders' ? 'bg-[#B45309] text-white' : 'text-[#57534E] hover:bg-[#E5DECA]'}`}>
+                  <ShoppingCart className="w-4 h-4" /> Purchase Orders (PO)
                 </button>
               </>
             )}
 
-            {currentUser.role === 'SITE_ENGINEER' && (
-              <button 
-                onClick={() => setActiveTab('grn')}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
-                  activeTab === 'grn' ? 'bg-amber-500 text-slate-950 font-semibold' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <ShieldAlert className="w-4 h-4" /> GRN & Fraud Audit
-              </button>
-            )}
+            <button onClick={() => setActiveTab('grn')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md font-medium text-sm transition ${activeTab === 'grn' ? 'bg-[#B45309] text-white' : 'text-[#57534E] hover:bg-[#E5DECA]'}`}>
+              <Truck className="w-4 h-4" /> Goods Receipts & Audit
+            </button>
 
-            <button 
-              onClick={() => setActiveTab('inventory')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
-                activeTab === 'inventory' ? 'bg-amber-500 text-slate-950 font-semibold' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <Package className="w-4 h-4" /> Site Inventory
+            <button onClick={() => setActiveTab('store')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md font-medium text-sm transition ${activeTab === 'store' ? 'bg-[#B45309] text-white' : 'text-[#57534E] hover:bg-[#E5DECA]'}`}>
+              <Store className="w-4 h-4" /> Store Issue Notes (SIN)
+            </button>
+
+            <button onClick={() => setActiveTab('migration')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md font-medium text-sm transition ${activeTab === 'migration' ? 'bg-[#B45309] text-white' : 'text-[#57534E] hover:bg-[#E5DECA]'}`}>
+              <Database className="w-4 h-4" /> Database Migration
             </button>
           </nav>
         </div>
 
-        <div className="border-t border-slate-800 pt-4 space-y-3">
-          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
-            <div className="overflow-hidden">
-              <span className="block font-semibold text-sm text-white truncate">{currentUser.name}</span>
-              <span className="block text-xs text-amber-400 font-mono font-medium">{currentUser.role}</span>
+        <div className="p-4 border-t border-[#E5DECA]">
+          <div className="flex items-center justify-between">
+            <div className="text-sm">
+              <p className="font-semibold text-[#292524]">{currentUser.name}</p>
+              <p className="text-xs text-[#78716C]">{currentUser.email}</p>
             </div>
-            <button 
-              onClick={handleLogout}
-              title="Sign Out"
-              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition"
-            >
-              <LogOut className="w-4 h-4" />
+            <button onClick={handleLogout} title="Logout" className="p-2 hover:bg-[#E5DECA] text-[#78716C] hover:text-[#B45309] rounded">
+              <LogOut className="w-5 h-5" />
             </button>
           </div>
         </div>
-      </div>
+      </aside>
 
-      {/* Main Content View */}
-      <div className="flex-1 overflow-y-auto p-8">
-        {activeTab === 'dashboard' && (
+      {/* Main Panel Content */}
+      <main className="flex-1 p-8 overflow-y-auto">
+        {/* OVERVIEW DASHBOARD */}
+        {activeTab === 'overview' && (
           <div className="space-y-6">
-            <div>
-              <h1 className="text-2xl font-bold text-white">Construction Operations Overview</h1>
-              <p className="text-slate-400 text-sm">Active Project: Metro Line Expansion - Sector 4</p>
+            <header className="flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold text-[#292524]">Executive Construction Overview</h1>
+                <p className="text-sm text-[#78716C]">Physical vs. Financial Progress, BOQ Consumption & Site Inventory</p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <select 
+                  value={projectStatusFilter} 
+                  onChange={e => setProjectStatusFilter(e.target.value)}
+                  className="p-2 bg-[#F3EFE0] border border-[#E5DECA] text-xs font-semibold rounded text-[#57534E]"
+                >
+                  <option value="ALL">All Projects ({projects.length})</option>
+                  <option value="ACTIVE">Active Sites ({projects.filter(p=>p.status==='ACTIVE').length})</option>
+                  <option value="COMPLETED">Completed ({projects.filter(p=>p.status==='COMPLETED').length})</option>
+                </select>
+
+                {currentUser.role === 'PROJECT_HEAD' && (
+                  <button 
+                    onClick={() => setIsProjectModalOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#B45309] hover:bg-[#92400E] text-white font-medium rounded-md shadow transition text-sm"
+                  >
+                    <Plus className="w-4 h-4" /> Add New Project
+                  </button>
+                )}
+              </div>
+            </header>
+
+            {/* Project Financial vs Physical Progress Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {filteredProjects.map(p => {
+                const spentAmount = calculateProjectFinancials(p.id);
+                const financialPct = Math.min(100, Math.round((spentAmount / p.budget) * 100));
+
+                return (
+                  <div key={p.id} className="bg-[#F3EFE0] border border-[#E5DECA] p-5 rounded-lg shadow-sm space-y-3 relative">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-lg text-[#292524]">{p.name}</h3>
+                          {p.status === 'COMPLETED' && (
+                            <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs font-bold rounded">
+                              COMPLETED
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[#78716C]">{p.location}</p>
+                      </div>
+
+                      {/* Project Head Actions: Toggle Complete or Delete */}
+                      {currentUser.role === 'PROJECT_HEAD' && (
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={() => toggleProjectStatus(p.id)} 
+                            title={p.status === 'ACTIVE' ? "Mark Project Completed" : "Reactivate Project"}
+                            className="p-1.5 hover:bg-[#E5DECA] text-[#78716C] hover:text-[#B45309] rounded"
+                          >
+                            {p.status === 'ACTIVE' ? <CheckCircle className="w-4 h-4 text-green-700" /> : <PlayCircle className="w-4 h-4 text-amber-700" />}
+                          </button>
+                          <button 
+                            onClick={() => deleteProject(p.id)} 
+                            title="Delete Project"
+                            className="p-1.5 hover:bg-[#E5DECA] text-[#78716C] hover:text-red-700 rounded"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Financial Spent Bar */}
+                    <div>
+                      <div className="flex justify-between text-xs font-medium mb-1">
+                        <span className="text-[#57534E]">Financial Budget Spent (Auto-Updated)</span>
+                        <span className="text-[#B45309] font-bold">{financialPct}%</span>
+                      </div>
+                      <div className="w-full bg-[#E5DECA] rounded-full h-2">
+                        <div className="bg-[#B45309] h-2 rounded-full transition-all duration-500" style={{ width: `${financialPct}%` }}></div>
+                      </div>
+                    </div>
+
+                    {/* Physical Progress Bar */}
+                    <div>
+                      <div className="flex justify-between text-xs font-medium mb-1">
+                        <span className="text-[#57534E]">Physical Site Completion</span>
+                        <span className="text-green-800 font-bold">{p.physical_progress}%</span>
+                      </div>
+                      <div className="w-full bg-[#E5DECA] rounded-full h-2">
+                        <div className="bg-green-700 h-2 rounded-full transition-all duration-500" style={{ width: `${p.physical_progress}%` }}></div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-sm border-t border-[#E5DECA] pt-3">
+                      <div>
+                        <span className="text-xs text-[#78716C] block">Approved BOQ Budget</span>
+                        <span className="font-semibold text-[#292524]">₹{(p.budget / 100000).toFixed(1)} Lakhs</span>
+                      </div>
+                      <div>
+                        <span className="text-xs text-[#78716C] block">Live Spent (Inc. GST)</span>
+                        <span className="font-semibold text-[#B45309]">₹{(spentAmount / 100000).toFixed(2)} Lakhs</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
+            {/* Metric Tiles */}
             <div className="grid grid-cols-4 gap-4">
-              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
-                <span className="text-xs text-slate-400 font-medium">TOTAL PRs</span>
-                <span className="block text-2xl font-bold text-white mt-1">{prs.length}</span>
+              <div className="bg-[#F3EFE0] p-4 rounded-lg border border-[#E5DECA]">
+                <span className="text-xs text-[#78716C]">Pending Requisitions</span>
+                <p className="text-2xl font-bold text-[#292524] mt-1">{prs.filter(p => p.status === 'PENDING').length}</p>
               </div>
-              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
-                <span className="text-xs text-slate-400 font-medium">PENDING APPROVAL</span>
-                <span className="block text-2xl font-bold text-amber-400 mt-1">{prs.filter(p => p.status === 'PENDING').length}</span>
+              <div className="bg-[#F3EFE0] p-4 rounded-lg border border-[#E5DECA]">
+                <span className="text-xs text-[#78716C]">Active Purchase Orders</span>
+                <p className="text-2xl font-bold text-[#292524] mt-1">{pos.length}</p>
               </div>
-              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
-                <span className="text-xs text-slate-400 font-medium">ACTIVE POS</span>
-                <span className="block text-2xl font-bold text-emerald-400 mt-1">{pos.length}</span>
+              <div className="bg-[#F3EFE0] p-4 rounded-lg border border-[#E5DECA]">
+                <span className="text-xs text-[#78716C]">Deliveries Pending</span>
+                <p className="text-2xl font-bold text-[#D97706] mt-1">300 Units</p>
               </div>
-              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
-                <span className="text-xs text-slate-400 font-medium">BOQ BUDGET OVER-RUNS</span>
-                <span className="block text-2xl font-bold text-rose-400 mt-1">
-                  {prs.filter(p => (p.boqUsed + p.qty) > p.boqMax).length}
-                </span>
+              <div className="bg-[#F3EFE0] p-4 rounded-lg border border-[#E5DECA]">
+                <span className="text-xs text-[#78716C]">GRN Anomaly Risk</span>
+                <p className="text-2xl font-bold text-green-700 mt-1">Low Risk</p>
               </div>
             </div>
+
+            {/* ADD PROJECT MODAL */}
+            {isProjectModalOpen && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-[#F3EFE0] border border-[#E5DECA] p-6 rounded-xl shadow-xl w-full max-w-lg space-y-4">
+                  <div className="flex justify-between items-center border-b border-[#E5DECA] pb-3">
+                    <h3 className="font-bold text-lg text-[#292524]">Create New Construction Project</h3>
+                    <button onClick={() => setIsProjectModalOpen(false)} className="text-[#78716C] hover:text-[#292524]">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleCreateProject} className="space-y-4 text-sm">
+                    <div>
+                      <label className="block text-xs font-medium text-[#57534E] mb-1">Project Name</label>
+                      <input 
+                        type="text" 
+                        required 
+                        value={newProject.name} 
+                        onChange={e => setNewProject({...newProject, name: e.target.value})} 
+                        className="w-full p-2.5 bg-[#FDFBF7] border border-[#D6CEB8] rounded focus:outline-none" 
+                        placeholder="e.g. Green Valley Commercial Complex" 
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-[#57534E] mb-1">Site Location & Sector</label>
+                      <input 
+                        type="text" 
+                        required 
+                        value={newProject.location} 
+                        onChange={e => setNewProject({...newProject, location: e.target.value})} 
+                        className="w-full p-2.5 bg-[#FDFBF7] border border-[#D6CEB8] rounded focus:outline-none" 
+                        placeholder="e.g. Plot 108, Phase 3" 
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-[#57534E] mb-1">Total BOQ Budget (₹)</label>
+                        <input 
+                          type="number" 
+                          required 
+                          value={newProject.budget} 
+                          onChange={e => setNewProject({...newProject, budget: e.target.value})} 
+                          className="w-full p-2.5 bg-[#FDFBF7] border border-[#D6CEB8] rounded focus:outline-none" 
+                          placeholder="25000000" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[#57534E] mb-1">Initial Physical Progress (%)</label>
+                        <input 
+                          type="number" 
+                          min="0"
+                          max="100"
+                          value={newProject.physical_progress} 
+                          onChange={e => setNewProject({...newProject, physical_progress: e.target.value})} 
+                          className="w-full p-2.5 bg-[#FDFBF7] border border-[#D6CEB8] rounded focus:outline-none" 
+                          placeholder="0" 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-3 border-t border-[#E5DECA]">
+                      <button 
+                        type="button" 
+                        onClick={() => setIsProjectModalOpen(false)}
+                        className="px-4 py-2 border border-[#D6CEB8] text-[#57534E] hover:bg-[#E5DECA] rounded font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        type="submit" 
+                        className="px-4 py-2 bg-[#B45309] hover:bg-[#92400E] text-white rounded font-medium shadow"
+                      >
+                        Save Project
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* UPGRADED REQUISITIONS TAB */}
-        {activeTab === 'prs' && (
+        {/* REQUISITIONS (PR) TAB */}
+        {activeTab === 'requisitions' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-bold text-white">Purchase Requisitions (WBS Tagged)</h1>
-              <span className="text-xs bg-slate-900 border border-slate-800 text-slate-400 px-3 py-1 rounded-full font-mono">
-                Project: Metro Sector 4
-              </span>
-            </div>
+            <header className="flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold text-[#292524]">Purchase Requisitions (PR)</h1>
+                <p className="text-sm text-[#78716C]">Detailed material specifications, WBS location tagging, and BOQ over-run audits</p>
+              </div>
 
-            {/* Site Engineer Form with Master Catalog Dropdown & WBS Field */}
+              <button 
+                onClick={() => exportToCsv('purchase_requisitions', filteredPrs)}
+                className="flex items-center gap-2 px-3 py-2 bg-[#F3EFE0] border border-[#E5DECA] text-[#57534E] hover:bg-[#E5DECA] text-xs font-semibold rounded"
+              >
+                <Download className="w-4 h-4" /> Export CSV
+              </button>
+            </header>
+
+            {/* Raise PR Form */}
             {currentUser.role === 'SITE_ENGINEER' && (
-              <form onSubmit={handleCreatePR} className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              <div className="bg-[#F3EFE0] border border-[#E5DECA] p-5 rounded-lg shadow-sm space-y-4">
+                <h3 className="font-bold text-md text-[#292524] flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-[#B45309]" /> Raise Site Material Requisition
+                </h3>
+                <form onSubmit={handleCreatePr} className="grid grid-cols-4 gap-4 text-sm">
                   <div>
-                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-                      Master Material Catalog
-                    </label>
+                    <label className="block text-xs font-medium mb-1 text-[#57534E]">Target Project</label>
                     <select 
-                      value={selectedMaterial}
-                      onChange={(e) => setSelectedMaterial(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200"
+                      value={newPr.project_id} 
+                      onChange={e => setNewPr({...newPr, project_id: e.target.value})}
+                      className="w-full p-2 bg-[#FDFBF7] border border-[#D6CEB8] rounded"
                     >
-                      {MASTER_MATERIALS.map(m => (
-                        <option key={m.id} value={m.name}>
-                          [{m.code}] {m.name} ({m.unit})
-                        </option>
+                      {projects.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
                       ))}
                     </select>
                   </div>
-
                   <div>
-                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-                      WBS Site Sub-Location / Plot / Block
-                    </label>
-                    <div className="relative">
-                      <MapPin className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
-                      <input 
-                        type="text" 
-                        value={subLocation} 
-                        onChange={(e) => setSubLocation(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 pl-9 pr-3 text-sm text-slate-200"
-                        required 
-                      />
+                    <label className="block text-xs font-medium mb-1 text-[#57534E]">Material Description & Grade</label>
+                    <input type="text" required value={newPr.item} onChange={e => setNewPr({...newPr, item: e.target.value})} className="w-full p-2 bg-[#FDFBF7] border border-[#D6CEB8] rounded" placeholder="e.g. Fe-550 TMT Steel Rebar 16mm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1 text-[#57534E]">Brand / Company</label>
+                    <input type="text" required value={newPr.company} onChange={e => setNewPr({...newPr, company: e.target.value})} className="w-full p-2 bg-[#FDFBF7] border border-[#D6CEB8] rounded" placeholder="e.g. JSW / UltraTech" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1 text-[#57534E]">WBS Site Location Tag</label>
+                    <input type="text" required value={newPr.sub_location} onChange={e => setNewPr({...newPr, sub_location: e.target.value})} className="w-full p-2 bg-[#FDFBF7] border border-[#D6CEB8] rounded" placeholder="e.g. Tower B / 3rd Slab" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1 text-[#57534E]">Quantity & Unit</label>
+                    <div className="flex gap-2">
+                      <input type="number" required value={newPr.qty} onChange={e => setNewPr({...newPr, qty: e.target.value})} className="w-full p-2 bg-[#FDFBF7] border border-[#D6CEB8] rounded" placeholder="100" />
+                      <select value={newPr.unit} onChange={e => setNewPr({...newPr, unit: e.target.value})} className="p-2 bg-[#FDFBF7] border border-[#D6CEB8] rounded">
+                        <option>MT</option><option>Bags</option><option>Cu.m</option><option>Units</option><option>Rmtr</option>
+                      </select>
                     </div>
                   </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <input 
-                    type="number" placeholder="Quantity Needed" value={newQty} onChange={(e) => setNewQty(e.target.value)}
-                    className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 flex-1" required
-                  />
-                  <input 
-                    type="number" placeholder="Est. Cost ($)" value={newCost} onChange={(e) => setNewCost(e.target.value)}
-                    className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 flex-1" required
-                  />
-                  <button type="submit" className="bg-amber-500 text-slate-950 font-semibold px-6 py-2 rounded-xl text-sm">
-                    Submit Tagged PR
-                  </button>
-                </div>
-              </form>
+                  <div>
+                    <label className="block text-xs font-medium mb-1 text-[#57534E]">Unit Rate (₹ Excl. Tax)</label>
+                    <input type="number" required value={newPr.unit_price} onChange={e => setNewPr({...newPr, unit_price: e.target.value})} className="w-full p-2 bg-[#FDFBF7] border border-[#D6CEB8] rounded" placeholder="64000" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1 text-[#57534E]">GST Sizing (%)</label>
+                    <select value={newPr.gst_pct} onChange={e => setNewPr({...newPr, gst_pct: e.target.value})} className="w-full p-2 bg-[#FDFBF7] border border-[#D6CEB8] rounded">
+                      <option value={18}>18% (Steel, RMC, Services)</option>
+                      <option value={28}>28% (Cement)</option>
+                      <option value={5}>5% (Aggregates / Sand)</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <button type="submit" className="w-full py-2 bg-[#B45309] hover:bg-[#92400E] text-white font-medium rounded transition">
+                      Submit Requisition
+                    </button>
+                  </div>
+                </form>
+              </div>
             )}
 
-            {/* PR Table displaying WBS Sub-Location & BOQ Budget Check */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-              <table className="w-full text-left text-sm text-slate-300">
-                <thead className="bg-slate-950 text-slate-400 text-xs uppercase border-b border-slate-800">
+            {/* Filter Bar */}
+            <div className="bg-[#F3EFE0] p-4 rounded-lg border border-[#E5DECA] flex gap-4 items-center">
+              <div className="flex-1 relative">
+                <Search className="w-4 h-4 absolute left-3 top-3 text-[#78716C]" />
+                <input 
+                  type="text" 
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Filter by PR #, Material Specs, Brand (e.g. Tata, UltraTech), or WBS Sub-location..." 
+                  className="w-full pl-9 pr-4 py-2 text-sm bg-[#FDFBF7] border border-[#D6CEB8] rounded focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-[#78716C]" />
+                <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="text-sm p-2 bg-[#FDFBF7] border border-[#D6CEB8] rounded">
+                  <option value="ALL">All Statuses</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="APPROVED">Approved</option>
+                </select>
+              </div>
+            </div>
+
+            {/* PR Table */}
+            <div className="bg-[#F3EFE0] border border-[#E5DECA] rounded-lg overflow-hidden">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-[#E5DECA] text-[#57534E] text-xs uppercase font-semibold">
                   <tr>
-                    <th className="p-4">PR ID</th>
-                    <th className="p-4">Material & WBS Location</th>
-                    <th className="p-4">Qty / BOQ Limit</th>
-                    <th className="p-4">Est. Cost</th>
-                    <th className="p-4">Status</th>
-                    {currentUser.role === 'PROJECT_HEAD' && <th className="p-4">BOQ Audit & Action</th>}
+                    <th className="p-3">PR ID</th>
+                    <th className="p-3">Project & Location</th>
+                    <th className="p-3">Material Specs & Brand</th>
+                    <th className="p-3">Quantity</th>
+                    <th className="p-3">Base Rate (₹)</th>
+                    <th className="p-3">Total Cost (Inc. GST)</th>
+                    <th className="p-3">BOQ Limit Check</th>
+                    <th className="p-3">Status</th>
+                    {currentUser.role === 'PROJECT_HEAD' && <th className="p-3">Action</th>}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {prs.map(pr => {
-                    const isOverrun = (pr.boqUsed + pr.qty) > pr.boqMax;
-                    return (
-                      <tr key={pr.id}>
-                        <td className="p-4 font-mono text-slate-400">#{pr.id}</td>
-                        <td className="p-4">
-                          <span className="font-bold text-white block">{pr.item}</span>
-                          <span className="text-xs text-amber-400 flex items-center gap-1 mt-0.5">
-                            <MapPin className="w-3 h-3" /> {pr.subLocation}
+                <tbody className="divide-y divide-[#E5DECA]">
+                  {filteredPrs.map(pr => (
+                    <tr key={pr.id} className="hover:bg-[#FDFBF7]/50">
+                      <td className="p-3 font-semibold">#{pr.id}</td>
+                      <td className="p-3">
+                        <div className="font-medium text-[#292524]">{pr.project}</div>
+                        <div className="text-xs text-[#78716C]">{pr.sub_location}</div>
+                      </td>
+                      <td className="p-3">
+                        <div className="font-medium text-[#292524]">{pr.item}</div>
+                        <div className="text-xs text-[#78716C]">Brand: <span className="font-semibold">{pr.company}</span></div>
+                      </td>
+                      <td className="p-3">{pr.qty} {pr.unit}</td>
+                      <td className="p-3">₹{pr.unit_price.toLocaleString('en-IN')}</td>
+                      <td className="p-3 font-semibold text-[#B45309]">₹{pr.total_price.toLocaleString('en-IN')}</td>
+                      <td className="p-3">
+                        {pr.qty + pr.boq_consumed > pr.boq_limit ? (
+                          <span className="px-2 py-0.5 bg-red-100 text-red-800 text-xs font-medium rounded flex items-center gap-1 w-fit">
+                            <AlertTriangle className="w-3 h-3" /> Exceeds BOQ
                           </span>
-                        </td>
-                        <td className="p-4">
-                          <span className="font-mono text-white block">{pr.qty} Units</span>
-                          <span className="text-xs text-slate-500">
-                            BOQ Used: {pr.boqUsed} / Max: {pr.boqMax}
+                        ) : (
+                          <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs font-medium rounded w-fit">
+                            Within BOQ
                           </span>
-                        </td>
-                        <td className="p-4 font-mono">${pr.cost.toLocaleString()}</td>
-                        <td className="p-4">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                            pr.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                            pr.status === 'REJECTED' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          }`}>
-                            {pr.status}
-                          </span>
-                        </td>
-                        {currentUser.role === 'PROJECT_HEAD' && (
-                          <td className="p-4">
-                            {pr.status === 'PENDING' ? (
-                              <div className="space-y-2">
-                                {isOverrun && (
-                                  <div className="text-xs text-rose-400 font-semibold flex items-center gap-1 bg-rose-500/10 p-1.5 rounded-lg border border-rose-500/20">
-                                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                                    <span>BOQ Over-run Risk! Exceeds limit by { (pr.boqUsed + pr.qty) - pr.boqMax } units.</span>
-                                  </div>
-                                )}
-                                <div className="flex gap-2">
-                                  <button onClick={() => handleApprovePR(pr.id)} className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 px-3 py-1 rounded-lg text-xs font-semibold">
-                                    Approve
-                                  </button>
-                                  <button onClick={() => handleRejectPR(pr.id)} className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 px-3 py-1 rounded-lg text-xs font-semibold">
-                                    Reject
-                                  </button>
-                                </div>
-                              </div>
-                            ) : <span className="text-slate-500 text-xs">Evaluated</span>}
-                          </td>
                         )}
-                      </tr>
-                    );
-                  })}
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded ${pr.status === 'APPROVED' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+                          {pr.status}
+                        </span>
+                      </td>
+                      {currentUser.role === 'PROJECT_HEAD' && (
+                        <td className="p-3">
+                          {pr.status === 'PENDING' && (
+                            <button onClick={() => {
+                              setPrs(prs.map(p => p.id === pr.id ? {...p, status: 'APPROVED'} : p));
+                            }} className="px-2.5 py-1 bg-[#B45309] hover:bg-[#92400E] text-white text-xs font-medium rounded shadow">
+                              Approve
+                            </button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {/* VENDOR SCORING TAB */}
-        {activeTab === 'fuzzy' && currentUser.role === 'PURCHASE_MANAGER' && (
+        {/* SOFT COMPUTING FUZZY VENDOR EVALUATION TAB */}
+        {activeTab === 'fuzzy' && (
           <div className="space-y-6">
-            <h1 className="text-2xl font-bold text-white">Soft Computing Vendor Score Engine</h1>
-            <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4">
+            <header>
+              <h1 className="text-2xl font-bold text-[#292524]">Soft Computing: Fuzzy Logic Vendor Evaluator</h1>
+              <p className="text-sm text-[#78716C]">Multi-criteria risk scoring across delivery delay, quality compliance, and price markup</p>
+            </header>
+
+            <div className="bg-[#F3EFE0] border border-[#E5DECA] p-6 rounded-lg space-y-6 max-w-2xl">
               <div>
-                <label className="text-sm text-slate-400">Delivery Delay (Days): {fuzzyDelay}</label>
-                <input type="range" min="0" max="15" value={fuzzyDelay} onChange={e => setFuzzyDelay(Number(e.target.value))} className="w-full accent-amber-500" />
+                <label className="block text-sm font-medium text-[#57534E] mb-1">Delivery Delay (Days): {fuzzyParams.delay_days} Days</label>
+                <input type="range" min="0" max="15" value={fuzzyParams.delay_days} onChange={e => setFuzzyParams({...fuzzyParams, delay_days: parseInt(e.target.value)})} className="w-full accent-[#B45309]" />
               </div>
+
               <div>
-                <label className="text-sm text-slate-400">Quality Compliance Score (%): {fuzzyQuality}%</label>
-                <input type="range" min="0" max="100" value={fuzzyQuality} onChange={e => setFuzzyQuality(Number(e.target.value))} className="w-full accent-amber-500" />
+                <label className="block text-sm font-medium text-[#57534E] mb-1">Defect / Quality Rejection Rate (%): {fuzzyParams.defect_rate}%</label>
+                <input type="range" min="0" max="20" value={fuzzyParams.defect_rate} onChange={e => setFuzzyParams({...fuzzyParams, defect_rate: parseInt(e.target.value)})} className="w-full accent-[#B45309]" />
               </div>
+
               <div>
-                <label className="text-sm text-slate-400">Price Deviation (%): {fuzzyPriceDev}%</label>
-                <input type="range" min="0" max="25" value={fuzzyPriceDev} onChange={e => setFuzzyPriceDev(Number(e.target.value))} className="w-full accent-amber-500" />
+                <label className="block text-sm font-medium text-[#57534E] mb-1">Price Markup Variance from BOQ (%): {fuzzyParams.price_dev}%</label>
+                <input type="range" min="0" max="25" value={fuzzyParams.price_dev} onChange={e => setFuzzyParams({...fuzzyParams, price_dev: parseInt(e.target.value)})} className="w-full accent-[#B45309]" />
               </div>
-              <button onClick={runFuzzyEval} className="bg-amber-500 text-slate-950 font-semibold px-4 py-2 rounded-xl text-sm">
-                Evaluate Vendor
+
+              <button onClick={runFuzzyEvaluation} className="w-full py-2.5 bg-[#B45309] hover:bg-[#92400E] text-white font-semibold rounded shadow transition">
+                Compute Defuzzified Vendor Score
               </button>
 
               {fuzzyResult && (
-                <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
-                  <span className="text-xs text-slate-500 uppercase">Evaluation Result</span>
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-white">{fuzzyResult.rating}</span>
-                    <span className="text-2xl font-bold text-amber-400">{fuzzyResult.score} / 100</span>
-                  </div>
+                <div className="p-4 bg-[#FDFBF7] border border-[#D6CEB8] rounded-md text-center space-y-1">
+                  <p className="text-xs text-[#78716C] uppercase font-semibold">Defuzzified Output Rating</p>
+                  <p className="text-3xl font-bold text-[#292524]">{fuzzyResult.score} / 100</p>
+                  <p className={`text-sm font-bold ${fuzzyResult.score < 50 ? 'text-red-700' : 'text-green-800'}`}>
+                    {fuzzyResult.category}
+                  </p>
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* UPGRADED PURCHASE ORDERS TAB WITH PARTIAL DELIVERY BALANCES */}
-        {activeTab === 'pos' && currentUser.role === 'PURCHASE_MANAGER' && (
+        {/* PURCHASE ORDERS (PO) TAB */}
+        {activeTab === 'orders' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-bold text-white">Purchase Orders (PO)</h1>
-              <span className="text-xs bg-purple-500/10 text-purple-400 border border-purple-500/20 px-3 py-1 rounded-full font-semibold">
-                Purchase Manager Console
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Approved Requisitions Pending PO Issuance
-              </h3>
-              
-              {prs.filter(p => p.status === 'APPROVED').length === 0 ? (
-                <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl text-slate-500 text-sm">
-                  No approved PRs pending PO generation.
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-4">
-                  {prs.filter(p => p.status === 'APPROVED').map(pr => (
-                    <div key={pr.id} className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex justify-between items-center">
-                      <div>
-                        <span className="text-xs font-mono text-amber-400 font-bold block">PR #{pr.id}</span>
-                        <span className="font-bold text-white text-base">{pr.item}</span>
-                        <span className="block text-xs text-slate-400 mt-1">
-                          WBS: {pr.subLocation}
-                        </span>
-                        <span className="block text-xs text-slate-400">
-                          Qty: {pr.qty} | Est. Cost: ${pr.cost.toLocaleString()}
-                        </span>
-                      </div>
-                      <button 
-                        onClick={() => handleIssuePo(pr)} 
-                        className="bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg transition"
-                      >
-                        Issue PO
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-3 pt-4">
-              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Active Issued Purchase Orders & Partial Delivery Balances
-              </h3>
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-                <table className="w-full text-left text-sm text-slate-300">
-                  <thead className="bg-slate-950 text-slate-400 text-xs uppercase border-b border-slate-800">
-                    <tr>
-                      <th className="p-4">PO ID</th>
-                      <th className="p-4">Vendor</th>
-                      <th className="p-4">Total Qty</th>
-                      <th className="p-4">Remaining Balance</th>
-                      <th className="p-4">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {pos.map(po => (
-                      <tr key={po.id}>
-                        <td className="p-4 font-mono font-bold text-purple-400">PO #{po.id}</td>
-                        <td className="p-4 font-semibold text-white">{po.vendor}</td>
-                        <td className="p-4 font-mono">{po.totalQty} Units</td>
-                        <td className="p-4 font-mono text-amber-400">{po.remainingQty} Units Pending</td>
-                        <td className="p-4">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
-                            po.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                            po.status === 'PARTIALLY_DELIVERED' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-                          }`}>
-                            {po.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <header className="flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold text-[#292524]">Active Purchase Orders (PO)</h1>
+                <p className="text-sm text-[#78716C]">Issued orders with live remaining balance tracking and vendor commitments</p>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* GRN & FRAUD AUDIT TAB */}
-        {activeTab === 'grn' && currentUser.role === 'SITE_ENGINEER' && (
-          <div className="space-y-6">
-            <h1 className="text-2xl font-bold text-white">GRN & Isolation Forest Fraud Intake</h1>
-            <form onSubmit={handleCreateGrn} className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1">Target PO ID</label>
-                  <input type="text" value={selectedPoId} onChange={e => setSelectedPoId(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-sm text-white" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1">Quantity Received</label>
-                  <input type="number" value={grnQty} onChange={e => setGrnQty(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-sm text-white" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1">Unit Billed Price ($)</label>
-                  <input type="number" value={grnUnitPrice} onChange={e => setGrnUnitPrice(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-sm text-white" />
-                </div>
-              </div>
-              <button type="submit" className="bg-amber-500 text-slate-950 font-semibold px-4 py-2 rounded-xl text-sm">
-                Submit GRN for ML Audit
+              <button onClick={() => exportToCsv('purchase_orders', pos)} className="flex items-center gap-2 px-3 py-2 bg-[#F3EFE0] border border-[#E5DECA] text-[#57534E] text-xs font-semibold rounded">
+                <Download className="w-4 h-4" /> Export CSV
               </button>
-            </form>
+            </header>
 
-            <div className="space-y-2">
-              {grnLogs.map(log => (
-                <div key={log.id} className={`p-4 rounded-xl border flex justify-between items-center ${
-                  log.isFraud ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                }`}>
-                  <div>
-                    <span className="font-bold">PO #{log.poId} Intake</span>
-                    <span className="block text-xs">Qty: {log.qty} @ ${log.price}/unit</span>
-                  </div>
-                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-950">{log.status}</span>
-                </div>
-              ))}
+            <div className="bg-[#F3EFE0] border border-[#E5DECA] rounded-lg overflow-hidden">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-[#E5DECA] text-[#57534E] text-xs uppercase font-semibold">
+                  <tr>
+                    <th className="p-3">PO ID</th>
+                    <th className="p-3">Vendor / Supplier</th>
+                    <th className="p-3">Item & Brand</th>
+                    <th className="p-3">Order Qty</th>
+                    <th className="p-3">Pending Balance</th>
+                    <th className="p-3">Agreed Amount (₹)</th>
+                    <th className="p-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5DECA]">
+                  {pos.map(po => (
+                    <tr key={po.id}>
+                      <td className="p-3 font-semibold">#{po.id}</td>
+                      <td className="p-3 font-medium">{po.vendor}</td>
+                      <td className="p-3">
+                        <div>{po.item}</div>
+                        <div className="text-xs text-[#78716C]">Brand: {po.company}</div>
+                      </td>
+                      <td className="p-3">{po.total_qty} Units</td>
+                      <td className="p-3 text-[#D97706] font-bold">{po.remaining_qty} Units</td>
+                      <td className="p-3 font-semibold text-[#B45309]">₹{po.agreed_inr.toLocaleString('en-IN')}</td>
+                      <td className="p-3">
+                        <span className="px-2.5 py-1 bg-amber-100 text-amber-800 text-xs font-semibold rounded">
+                          {po.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
-        {/* INVENTORY TAB */}
-        {activeTab === 'inventory' && (
+        {/* GOODS RECEIPTS (GRN) TAB */}
+        {activeTab === 'grn' && (
           <div className="space-y-6">
-            <h1 className="text-2xl font-bold text-white">Physical Site Stock Inventory</h1>
-            <div className="grid grid-cols-3 gap-4">
-              {inventory.map(inv => (
-                <div key={inv.id} className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
-                  <span className="text-xs text-slate-400">{inv.unit}</span>
-                  <h3 className="font-bold text-lg text-white mt-1">{inv.item}</h3>
-                  <span className="block text-2xl font-bold text-amber-400 mt-2">{inv.qty}</span>
-                </div>
-              ))}
+            <header className="flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold text-[#292524]">Goods Received Notes (GRN) & Intake Audit</h1>
+                <p className="text-sm text-[#78716C]">Upload physical delivery challans with ML anomaly detection</p>
+              </div>
+              <button onClick={() => exportToCsv('goods_receipts', grns)} className="flex items-center gap-2 px-3 py-2 bg-[#F3EFE0] border border-[#E5DECA] text-[#57534E] text-xs font-semibold rounded">
+                <Download className="w-4 h-4" /> Export CSV
+              </button>
+            </header>
+
+            {/* GRN Creation Form with Challan Upload */}
+            {currentUser.role === 'SITE_ENGINEER' && (
+              <div className="bg-[#F3EFE0] border border-[#E5DECA] p-5 rounded-lg shadow-sm space-y-4">
+                <h3 className="font-bold text-md text-[#292524] flex items-center gap-2">
+                  <Upload className="w-4 h-4 text-[#B45309]" /> Record Site Delivery & Attach Physical Challan
+                </h3>
+                <form onSubmit={handleCreateGrn} className="grid grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <label className="block text-xs font-medium mb-1 text-[#57534E]">Target Purchase Order</label>
+                    <select 
+                      value={newGrn.po_id} 
+                      onChange={e => setNewGrn({...newGrn, po_id: e.target.value})}
+                      className="w-full p-2 bg-[#FDFBF7] border border-[#D6CEB8] rounded"
+                    >
+                      {pos.map(po => (
+                        <option key={po.id} value={po.id}>PO #{po.id} - {po.item} ({po.vendor})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1 text-[#57534E]">Quantity Received</label>
+                    <input type="number" required value={newGrn.qty_received} onChange={e => setNewGrn({...newGrn, qty_received: e.target.value})} className="w-full p-2 bg-[#FDFBF7] border border-[#D6CEB8] rounded" placeholder="300" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1 text-[#57534E]">Billed Unit Price (₹)</label>
+                    <input type="number" required value={newGrn.unit_price} onChange={e => setNewGrn({...newGrn, unit_price: e.target.value})} className="w-full p-2 bg-[#FDFBF7] border border-[#D6CEB8] rounded" placeholder="380" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1 text-[#57534E]">Upload Delivery Challan (PDF/JPG)</label>
+                    <input 
+                      type="file" 
+                      accept=".pdf,.jpg,.png" 
+                      required
+                      onChange={e => setNewGrn({...newGrn, challan_file: e.target.files[0]})}
+                      className="w-full text-xs p-1 bg-[#FDFBF7] border border-[#D6CEB8] rounded"
+                    />
+                  </div>
+                  <div className="col-span-4 flex justify-end">
+                    <button type="submit" className="px-6 py-2 bg-[#B45309] hover:bg-[#92400E] text-white font-medium rounded transition">
+                      Submit Intake & Audit
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* GRN Table */}
+            <div className="bg-[#F3EFE0] border border-[#E5DECA] rounded-lg overflow-hidden">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-[#E5DECA] text-[#57534E] text-xs uppercase font-semibold">
+                  <tr>
+                    <th className="p-3">GRN ID</th>
+                    <th className="p-3">Material & Vendor</th>
+                    <th className="p-3">Received Qty</th>
+                    <th className="p-3">Billed Rate (₹)</th>
+                    <th className="p-3">Challan Document</th>
+                    <th className="p-3">ML Anomaly Audit</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5DECA]">
+                  {grns.map(g => (
+                    <tr key={g.id}>
+                      <td className="p-3 font-semibold">#{g.id}</td>
+                      <td className="p-3 font-medium">{g.item} <br/><span className="text-xs text-[#78716C]">{g.vendor}</span></td>
+                      <td className="p-3">{g.qty_received} Units</td>
+                      <td className="p-3">₹{g.unit_price}</td>
+                      <td className="p-3">
+                        <span className="flex items-center gap-1 text-xs text-[#B45309] underline font-medium cursor-pointer">
+                          <Paperclip className="w-3.5 h-3.5" /> {g.challan_doc}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        {g.is_flagged ? (
+                          <span className="px-2.5 py-1 bg-red-100 text-red-800 text-xs font-semibold rounded flex items-center gap-1 w-fit">
+                            <XCircle className="w-3.5 h-3.5" /> Flagged
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded flex items-center gap-1 w-fit">
+                            <CheckCircle className="w-3.5 h-3.5" /> Passed & Inventoried
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
-      </div>
+
+        {/* STORE ISSUE NOTES (SIN) TAB */}
+        {activeTab === 'store' && (
+          <div className="space-y-6">
+            <header className="flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold text-[#292524]">Store Issue Notes (SIN) & Site Consumption</h1>
+                <p className="text-sm text-[#78716C]">Track materials issued from central site store to sub-contractors and casting activities</p>
+              </div>
+              <button onClick={() => exportToCsv('store_issue_notes', sins)} className="flex items-center gap-2 px-3 py-2 bg-[#F3EFE0] border border-[#E5DECA] text-[#57534E] text-xs font-semibold rounded">
+                <Download className="w-4 h-4" /> Export CSV
+              </button>
+            </header>
+
+            <div className="bg-[#F3EFE0] border border-[#E5DECA] rounded-lg overflow-hidden">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-[#E5DECA] text-[#57534E] text-xs uppercase font-semibold">
+                  <tr>
+                    <th className="p-3">SIN ID</th>
+                    <th className="p-3">WBS Casting Location</th>
+                    <th className="p-3">Material Description</th>
+                    <th className="p-3">Quantity Issued</th>
+                    <th className="p-3">Issued To Subcontractor</th>
+                    <th className="p-3">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5DECA]">
+                  {sins.map(s => (
+                    <tr key={s.id}>
+                      <td className="p-3 font-semibold">#{s.id}</td>
+                      <td className="p-3 font-medium">{s.sub_location}</td>
+                      <td className="p-3">{s.item}</td>
+                      <td className="p-3 font-bold text-[#B45309]">{s.qty_issued} {s.unit}</td>
+                      <td className="p-3 text-xs">{s.issued_to}</td>
+                      <td className="p-3 text-xs">{s.date}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* DATABASE MIGRATION TAB */}
+        {activeTab === 'migration' && (
+          <div className="space-y-6">
+            <header>
+              <h1 className="text-2xl font-bold text-[#292524]">Legacy Database Migration Engine</h1>
+              <p className="text-sm text-[#78716C]">Bulk load company databases, vendor histories, and master material catalogs</p>
+            </header>
+
+            <div className="bg-[#F3EFE0] border border-[#E5DECA] p-6 rounded-lg space-y-4 max-w-xl">
+              <h3 className="font-bold text-md text-[#292524] flex items-center gap-2">
+                <Database className="w-5 h-5 text-[#B45309]" /> Upload Existing ERP / Excel Database Backup
+              </h3>
+              <p className="text-xs text-[#78716C]">
+                Select a legacy dump file (`.csv` or `.json`) containing master item catalogs, opening stock balances, or vendor history tables.
+              </p>
+
+              <input 
+                type="file" 
+                accept=".csv,.json" 
+                onChange={handleDatabaseMigration}
+                className="w-full p-3 bg-[#FDFBF7] border border-[#D6CEB8] rounded text-sm"
+              />
+
+              {migrationStatus && (
+                <div className="p-3 bg-green-100 border border-green-300 text-green-800 text-xs rounded flex items-center gap-2">
+                  <FileCheck className="w-4 h-4 shrink-0" />
+                  {migrationStatus}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 }
